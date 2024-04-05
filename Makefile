@@ -1,8 +1,16 @@
-main: main.c
-	gcc -Wall -Wextra -pedantic -std=c99 -g main.c -o logic
+CC=gcc
+CFLAGS=-Wall -Wextra -pedantic -std=c99 -g
 
-run: main
-	./logic
+PROGRAM_NAME=logic
+
+BUILD_FOLDER=build
+SRC_FOLDER=src
+
+build:
+	$(CC) $(CFLAGS) $(SRC_FOLDER)/main.c -o $(BUILD_FOLDER)/${PROGRAM_NAME}
+
+run: build
+	$(BUILD_FOLDER)/${PROGRAM_NAME}
 
 debug: main
-	/home/jonathan/Software/gf/gf2 logic &
+	/home/jonathan/Software/gf/gf2 build/logic &
