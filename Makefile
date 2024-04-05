@@ -1,7 +1,7 @@
-main.c:
+main: main
 	gcc -Wall -Wextra -pedantic -std=c99 -g main.c -o logic
 
-run: main.c
+run: main
 	./logic
 
 debug:

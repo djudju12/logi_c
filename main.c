@@ -6,10 +6,7 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
-typedef struct {
-    const char *text;
-    int cursor;
-} Lexer;
+char* read_file(const char* file_path);
 
 typedef enum {
     TOKEN_PREP = 0    ,
@@ -35,6 +32,23 @@ typedef struct {
 } Token;
 
 _Static_assert(ARRAY_SIZE(TOKEN_TYPE_DESC) == _TOTAL_TOKEN_TYPES, "assert that you have implemented the description of all the tokens");
+
+typedef struct {
+    const char *text;
+    Token *token;
+    int cursor;
+} Lexer;
+
+Lexer* make_lexer(const char *code_path) {
+    const char *code = read_file(code_path);
+    assert(code != NULL && "cannot read the code!");
+    Lexer *lex = malloc(sizeof(Lexer));
+
+    lex->cursor = 0;
+    lex->text = code;
+    lex->token = malloc(sizeof(Token));
+    return lex;
+}
 
 char lex_currc(Lexer *lex) {
     char c = lex->text[lex->cursor];
@@ -73,7 +87,7 @@ bool token_is_single_char(char c) {
     return false;
 }
 
-int lex_nextt(Lexer *lex, Token *token) {
+int lex_nextt(Lexer *lex) {
     char c = lex_currc(lex);
     while (c != -1 && isspace(c)) {
         c = lex_nextc(lex);
@@ -87,31 +101,45 @@ int lex_nextt(Lexer *lex, Token *token) {
     if (isalpha(c) && c != 'v') {
         while (c != -1 && isalpha(c)) {
             assert(i < MAX_TOKEN_SIZE-1 && "ERROR: MAX_TOKEN_SIZE");
-            token->value[i++] = c;
+            lex->token->value[i++] = c;
             c = lex_nextc(lex);
         }
 
-        token->value[i] = '\0';
-        token->type = TOKEN_PREP;
+        lex->token->value[i] = '\0';
+        lex->token->type = TOKEN_PREP;
         return 0;
     }
 
     if (token_is_single_char(c)) {
-        token->value[0] = c;
-        token->value[1] = '\0';
-        lex->cursor = lex->cursor + 1;
+        lex->token->value[0] = c;
+        lex->token->value[1] = '\0';
+        lex_nextc(lex);
         switch (c) {
             case 'v': /* OR  */
             case '+': /* XOR */
             case '^': /* AND */
-                      token->type = TOKEN_BINOP;   return 0;
+                      lex->token->type = TOKEN_BINOP;   return 0;
 
-            case '~': token->type = TOKEN_SIGOP;   return 0;
-            case '(': token->type = TOKEN_OPPAREN; return 0;
-            case ')': token->type = TOKEN_CLPAREN; return 0;
+            case '~': lex->token->type = TOKEN_SIGOP;   return 0;
+            case '(': lex->token->type = TOKEN_OPPAREN; return 0;
+            case ')': lex->token->type = TOKEN_CLPAREN; return 0;
             default: {
                 assert(false && "unreachable");
             }
+        }
+    }
+
+    // TODO: add token for => and <=>
+    if (c == '-' || c == '<') {
+        char first_char = c;
+        c = lex_nextc(lex);
+        if (c == '>' || c == '-') {
+            lex->token->type = TOKEN_BINOP;
+            lex->token->value[0] = first_char;
+            lex->token->value[1] = c;
+            lex->token->value[2] = '\0';
+            lex_nextc(lex);
+            return 0;
         }
     }
 
@@ -119,20 +147,19 @@ int lex_nextt(Lexer *lex, Token *token) {
 }
 
 int main(void) {
-    const char *exp = "((a v b) ^ ~c) + d";
-    Lexer lex = {0};
-    lex.text = exp;
-    lex.cursor = 0;
-    Token t = {0};
-
-    while (lex_nextt(&lex, &t) != -1) {
-        printf("\"%s\" | type->%s\n", t.value, TOKEN_TYPE_DESC[t.type]);
+    const char *file_path = "teste.lc";
+    Lexer *lex = make_lexer(file_path);
+    while (lex_nextt(lex) != -1) {
+        printf("\"%s\"\t| type->%s\n",
+            lex->token->value,
+            TOKEN_TYPE_DESC[lex->token->type]
+        );
     }
 
+    free(lex);
     return 0;
 }
 
-/* READ FILE CONTENT
 char* read_file(const char* file_path) {
     FILE *f = fopen(file_path, "r");
     if (f == NULL) {
@@ -155,9 +182,9 @@ char* read_file(const char* file_path) {
     }
 
     return content;
+
 ERROR:
-    if (f) free(f);
+    if (f) fclose(f);
     if (content) free(content);
-    return -1;
+    return NULL;
 }
-*/
