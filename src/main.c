@@ -34,13 +34,13 @@ typedef struct {
 _Static_assert(ARRAY_SIZE(TOKEN_TYPE_DESC) == _TOTAL_TOKEN_TYPES, "assert that you have implemented the description of all the tokens");
 
 typedef struct {
-    const char *text;
+    char *text;
     Token *token;
     int cursor;
 } Lexer;
 
-Lexer* make_lexer(const char *code_path) {
-    const char *code = read_file(code_path);
+Lexer* lex_make(const char *code_path) {
+    char *code = read_file(code_path);
     assert(code != NULL && "cannot read the code!");
     Lexer *lex = malloc(sizeof(Lexer));
 
@@ -48,6 +48,14 @@ Lexer* make_lexer(const char *code_path) {
     lex->text = code;
     lex->token = malloc(sizeof(Token));
     return lex;
+}
+
+void lex_free(Lexer *lex) {
+    if (lex == NULL) return;
+
+    free(lex->text);
+    free(lex->token);
+    free(lex);
 }
 
 char lex_currc(Lexer *lex) {
@@ -148,7 +156,7 @@ int lex_nextt(Lexer *lex) {
 
 int main(void) {
     const char *file_path = "teste.lc";
-    Lexer *lex = make_lexer(file_path);
+    Lexer *lex = lex_make(file_path);
     while (lex_nextt(lex) != -1) {
         printf("\"%s\"\t| type->%s\n",
             lex->token->value,
@@ -156,7 +164,7 @@ int main(void) {
         );
     }
 
-    free(lex);
+    lex_free(lex);
     return 0;
 }
 
