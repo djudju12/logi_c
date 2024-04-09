@@ -6,6 +6,72 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#define MAX_NUMBER_OF_SYMBOLS 256
+#define MAX_TOKEN_SIZE        256
+
+// Table
+#define BOOLEAN __int8_t
+
+struct _SYMBOLS_TABLE {
+    BOOLEAN symbols[MAX_NUMBER_OF_SYMBOLS];
+    int length;
+};
+
+struct _SYMBOLS_TABLE TABLE;
+
+BOOLEAN symbols_get(char *symbol);
+void symbols_insert(char *symbol, BOOLEAN value);
+void symbols_delete(char *symbol);
+
+#define EMPTY_SLOT (-1)
+void INIT_SYMBOLS_TABLE() {
+    for (int i = 0; i < MAX_NUMBER_OF_SYMBOLS; i++) {
+        TABLE.symbols[i] = EMPTY_SLOT;
+    }
+}
+
+long int hash(char *s) {
+    int cnt = 0, p = 7877;
+    long int h = 0;
+    while (*s != '\0' && cnt < MAX_TOKEN_SIZE) h = p*h + *(s++);
+    return h;
+}
+
+BOOLEAN symbols_get(char *symbol) {
+    return TABLE.symbols[hash(symbol) % MAX_NUMBER_OF_SYMBOLS];
+}
+
+void symbols_insert(char *symbol, BOOLEAN value) {
+    assert(TABLE.length < MAX_NUMBER_OF_SYMBOLS && "Symbols table exceds maximum number os entries");
+    assert(value != EMPTY_SLOT && "Cannot use EMPTY_SLOT has a value");
+
+    int i = hash(symbol) % MAX_NUMBER_OF_SYMBOLS;
+    assert(TABLE.symbols[i] == EMPTY_SLOT && "TODO: Collision not implemented");
+
+    TABLE.symbols[i] = value;
+    TABLE.length++;
+}
+
+void symbols_delete(char *symbol) {
+    assert(TABLE.length > 0 && "Trying to delete a symbol in an empty table");
+    int i = hash(symbol) % MAX_NUMBER_OF_SYMBOLS;
+    TABLE.symbols[i] = EMPTY_SLOT;
+    TABLE.length--;
+}
+
+void print_symbols_table() {
+    for (int i = 0; i < MAX_NUMBER_OF_SYMBOLS; i++) {
+        if (TABLE.symbols[i] == EMPTY_SLOT) {
+            printf("[%03d] EMPTY_SLOT(%d)\n", i, TABLE.symbols[i]);
+        } else {
+            printf("[%03d] %d\n", i, TABLE.symbols[i]);
+        }
+    }
+}
+
+// end Table
+
+// Lexer
 char* read_file(const char* file_path);
 
 typedef enum {
@@ -25,7 +91,6 @@ char* TOKEN_TYPE_DESC[] = {
     [TOKEN_CLPAREN] = "TOKEN_CLPAREN",
 };
 
-#define MAX_TOKEN_SIZE 255
 typedef struct {
     char value[MAX_TOKEN_SIZE];
     TOKEN_TYPE type;
@@ -115,6 +180,11 @@ int lex_nextt(Lexer *lex) {
 
         lex->token->value[i] = '\0';
         lex->token->type = TOKEN_PREP;
+        BOOLEAN s = symbols_get(lex->token->value);
+        if (s == EMPTY_SLOT) {
+            symbols_insert(lex->token->value, 0);
+        }
+
         return 0;
     }
 
@@ -154,7 +224,10 @@ int lex_nextt(Lexer *lex) {
     assert(false && "unreachable");
 }
 
+// end Lexer
+
 int main(void) {
+    INIT_SYMBOLS_TABLE();
     const char *file_path = "teste.lc";
     Lexer *lex = lex_make(file_path);
     while (lex_nextt(lex) != -1) {
@@ -165,6 +238,7 @@ int main(void) {
     }
 
     lex_free(lex);
+    print_symbols_table();
     return 0;
 }
 
