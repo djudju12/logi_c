@@ -98,6 +98,9 @@ typedef struct {
 
 _Static_assert(ARRAY_SIZE(TOKEN_TYPE_DESC) == _TOTAL_TOKEN_TYPES, "assert that you have implemented the description of all the tokens");
 
+#define FMT_Token "Token(%s, %s)"
+#define ARGS_Token(t) (t).value, TOKEN_TYPE_DESC[(t).type]
+
 typedef struct {
     char *text;
     Token *token;
@@ -231,10 +234,7 @@ int main(void) {
     const char *file_path = "teste.lc";
     Lexer *lex = lex_make(file_path);
     while (lex_nextt(lex) != -1) {
-        printf("\"%s\"\t| type->%s\n",
-            lex->token->value,
-            TOKEN_TYPE_DESC[lex->token->type]
-        );
+        printf(FMT_Token"\n", ARGS_Token(*lex->token));
     }
 
     lex_free(lex);
