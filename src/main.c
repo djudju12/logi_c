@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -118,6 +119,10 @@ Lexer* lex_make(const char *code_path) {
     lex->text = code;
     lex->token = malloc(sizeof(Token));
     return lex;
+}
+
+void lex_reset(Lexer *lex) {
+    lex->cursor = 0;
 }
 
 void lex_free(Lexer *lex) {
@@ -240,7 +245,7 @@ int lex_nextt(Lexer *lex) {
 
 // end Lexer
 
-// Stack Machine
+// Stack
 
 #define MAX_STACK_SIZE 4096
 
@@ -277,6 +282,20 @@ BOOLEAN OR(BOOLEAN value, BOOLEAN value2) {
     return value || value2;
 }
 
+BOOLEAN AND(BOOLEAN value, BOOLEAN value2) {
+    return value && value2;
+}
+
+typedef BOOLEAN (*BINOP_FUNC)(BOOLEAN, BOOLEAN);
+
+BINOP_FUNC get_binop_operation(char *operation_symbol) {
+    if (strncmp(operation_symbol, "v", 1) == 0) {
+        return &OR;
+    } else if (strncmp(operation_symbol, "^", 1) == 0) {
+        return &AND;
+    } else { assert(0 && "TODO: not implemented"); }
+}
+
 void evaluate(Lexer *lex, int initial_parenteses_open_count) {
     BOOLEAN v, v2;
     int parens = initial_parenteses_open_count;
@@ -303,18 +322,18 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
                 } else { assert(0 && "unreachable"); }
             } break;
             case TOKEN_BINOP: {
+                BINOP_FUNC operation = get_binop_operation(lex->token->value);
+                assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
+
                 v = pop(&stack);
-                if (strncmp(lex->token->value, "v", 1) == 0) {
-                    assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
-                    if (lex->token->type == TOKEN_PREP){
-                        v2 = symbols_get(lex->token->value);
-                        push(&stack, OR(v, v2));
-                    } else if (lex->token->type == TOKEN_OPPAREN) {
-                        evaluate(lex, parens++);
-                        v2 = pop(&stack);
-                        push(&stack, OR(v, v2));
-                    } else { assert(0 && "unreachable"); }
-                } else { assert(0 && "TODO: not implemented"); }
+                if (lex->token->type == TOKEN_PREP) {
+                    v2 = symbols_get(lex->token->value);
+                    push(&stack, (*operation)(v, v2));
+                } else if (lex->token->type == TOKEN_OPPAREN) {
+                    evaluate(lex, parens++);
+                    v2 = symbols_get(lex->token->value);
+                    push(&stack, (*operation)(v, v2));
+                } else { assert(0 && "unreachable"); }
             } break;
             default: assert(0 && "unreachable");
         }
@@ -322,11 +341,35 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
     }
 }
 
+void generate_truth_table(Lexer *lex) {
+    int ocupied_indexes[MAX_NUMBER_OF_SYMBOLS] = {0};
+
+    evaluate(lex, 0);
+    for (int i = 0, cnt = 0; i < MAX_NUMBER_OF_SYMBOLS; i++) {
+        if (TABLE.symbols[i] != EMPTY_SLOT) ocupied_indexes[cnt++] = i;
+    }
+
+    for (int j = (int)pow(2, TABLE.length)-2; j >= 0; j--) {
+        for(int k = 0; k < TABLE.length; k++) {
+            int index = ocupied_indexes[k];
+            TABLE.symbols[index] &= j>>(TABLE.length-k-1);
+        }
+
+        lex_reset(lex);
+        evaluate(lex, 0);
+
+        for(int k = 0; k < TABLE.length; k++) {
+            int index = ocupied_indexes[k];
+            TABLE.symbols[index] = 1;
+        }
+    }
+}
+
 int main(void) {
     INIT_SYMBOLS_TABLE();
     const char *file_path = "teste.lc";
     Lexer *lex = lex_make(file_path);
-    evaluate(lex, 0);
+    generate_truth_table(lex);
     lex_free(lex);
     print_stack_trace(&stack);
     return 0;

@@ -7,7 +7,7 @@ BUILD_FOLDER=build
 SRC_FOLDER=src
 
 build:
-	$(CC) $(CFLAGS) $(SRC_FOLDER)/main.c -o $(BUILD_FOLDER)/${PROGRAM_NAME}
+	$(CC) $(CFLAGS) $(SRC_FOLDER)/main.c -o $(BUILD_FOLDER)/${PROGRAM_NAME} -lm
 
 run: build
 	$(BUILD_FOLDER)/${PROGRAM_NAME}
