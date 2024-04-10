@@ -18,6 +18,7 @@ char* read_file(const char* file_path);
 
 struct _SYMBOLS_TABLE {
     BOOLEAN symbols[MAX_NUMBER_OF_SYMBOLS];
+    char keys[MAX_TOKEN_SIZE][MAX_NUMBER_OF_SYMBOLS];
     int length;
 };
 
@@ -26,6 +27,7 @@ struct _SYMBOLS_TABLE TABLE;
 BOOLEAN symbols_get(char *symbol);
 void symbols_insert(char *symbol, BOOLEAN value);
 void symbols_delete(char *symbol);
+void symbols_reset();
 
 #define EMPTY_SLOT (-1)
 
@@ -45,10 +47,12 @@ void symbols_insert(char *symbol, BOOLEAN value) {
     assert(value != EMPTY_SLOT && "Cannot use EMPTY_SLOT has a value");
 
     int i = hash(symbol) % MAX_NUMBER_OF_SYMBOLS;
-    // assert(TABLE.symbols[i] == EMPTY_SLOT && "TODO: Collision not implemented");
+
+    if (TABLE.symbols[i] == EMPTY_SLOT) {
+        strncpy(TABLE.keys[TABLE.length++], symbol, MAX_TOKEN_SIZE);
+    }
 
     TABLE.symbols[i] = value;
-    TABLE.length++;
 }
 
 void symbols_delete(char *symbol) {
@@ -58,6 +62,12 @@ void symbols_delete(char *symbol) {
     TABLE.length--;
 }
 
+void symbols_reset() {
+    for (int k = 0; k < TABLE.length; k++) {
+        symbols_insert(TABLE.keys[k], 1);
+    }
+}
+
 void INIT_SYMBOLS_TABLE() {
     for (int i = 0; i < MAX_NUMBER_OF_SYMBOLS; i++) {
         TABLE.symbols[i] = EMPTY_SLOT;
@@ -65,13 +75,9 @@ void INIT_SYMBOLS_TABLE() {
 }
 
 void print_symbols_table() {
-    for (int i = 0; i < MAX_NUMBER_OF_SYMBOLS; i++) {
-        if (TABLE.symbols[i] == EMPTY_SLOT) {
-            printf("[%03d] EMPTY_SLOT(%d)\n", i, TABLE.symbols[i]);
-        } else {
-            printf("[%03d] %d\n", i, TABLE.symbols[i]);
-        }
-    }
+    for (int i = 0; i < TABLE.length; i++) {
+        printf("[%s] %d ", TABLE.keys[i], symbols_get(TABLE.keys[i]));
+    } printf("\n");
 }
 
 // end Table
@@ -279,11 +285,23 @@ BOOLEAN NOT(BOOLEAN value) {
 }
 
 BOOLEAN OR(BOOLEAN value, BOOLEAN value2) {
-    return value || value2;
+    return value | value2;
 }
 
 BOOLEAN AND(BOOLEAN value, BOOLEAN value2) {
-    return value && value2;
+    return value & value2;
+}
+
+BOOLEAN XOR(BOOLEAN value, BOOLEAN value2) {
+    return value ^ value2;
+}
+
+BOOLEAN COND(BOOLEAN value, BOOLEAN value2) {
+    return (!value) | value2;
+}
+
+BOOLEAN BCOND(BOOLEAN value, BOOLEAN value2) {
+    return !(value ^ value2);
 }
 
 typedef BOOLEAN (*BINOP_FUNC)(BOOLEAN, BOOLEAN);
@@ -293,6 +311,12 @@ BINOP_FUNC get_binop_operation(char *operation_symbol) {
         return &OR;
     } else if (strncmp(operation_symbol, "^", 1) == 0) {
         return &AND;
+    } else if (strncmp(operation_symbol, "+", 1) == 0) {
+        return &XOR;
+    } else if (strncmp(operation_symbol, "->", 2) == 0) {
+        return &COND;
+    } else if (strncmp(operation_symbol, "<->", 3) == 0) {
+        return &BCOND;
     } else { assert(0 && "TODO: not implemented"); }
 }
 
@@ -342,27 +366,33 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
 }
 
 void generate_truth_table(Lexer *lex) {
-    int ocupied_indexes[MAX_NUMBER_OF_SYMBOLS] = {0};
-
     evaluate(lex, 0);
-    for (int i = 0, cnt = 0; i < MAX_NUMBER_OF_SYMBOLS; i++) {
-        if (TABLE.symbols[i] != EMPTY_SLOT) ocupied_indexes[cnt++] = i;
+    printf("COL_R = %s", lex->text);
+    for(int k = 0; k < TABLE.length; k++) {
+        printf("%s ", TABLE.keys[k]);
+    } printf("COL_R\n");
+
+    for(int k = 0; k < TABLE.length; k++) {
+        BOOLEAN v = symbols_get(TABLE.keys[k]);
+        printf("%d ", v);
     }
+
+    printf("%d\n", pop(&stack));
 
     for (int j = (int)pow(2, TABLE.length)-2; j >= 0; j--) {
         for(int k = 0; k < TABLE.length; k++) {
-            int index = ocupied_indexes[k];
-            TABLE.symbols[index] &= j>>(TABLE.length-k-1);
+            BOOLEAN v = symbols_get(TABLE.keys[k])&j>>(TABLE.length-k-1);
+            symbols_insert(TABLE.keys[k], v);
+
+            printf("%d ", v);
         }
 
         lex_reset(lex);
         evaluate(lex, 0);
-
-        for(int k = 0; k < TABLE.length; k++) {
-            int index = ocupied_indexes[k];
-            TABLE.symbols[index] = 1;
-        }
+        printf("%d\n", pop(&stack));
+        symbols_reset();
     }
+
 }
 
 int main(void) {
@@ -371,7 +401,6 @@ int main(void) {
     Lexer *lex = lex_make(file_path);
     generate_truth_table(lex);
     lex_free(lex);
-    print_stack_trace(&stack);
     return 0;
 }
 
