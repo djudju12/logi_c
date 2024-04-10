@@ -6,6 +6,8 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+char* read_file(const char* file_path);
+
 #define MAX_NUMBER_OF_SYMBOLS 256
 #define MAX_TOKEN_SIZE        256
 
@@ -24,11 +26,6 @@ void symbols_insert(char *symbol, BOOLEAN value);
 void symbols_delete(char *symbol);
 
 #define EMPTY_SLOT (-1)
-void INIT_SYMBOLS_TABLE() {
-    for (int i = 0; i < MAX_NUMBER_OF_SYMBOLS; i++) {
-        TABLE.symbols[i] = EMPTY_SLOT;
-    }
-}
 
 long int hash(char *s) {
     int cnt = 0, p = 7877;
@@ -59,6 +56,12 @@ void symbols_delete(char *symbol) {
     TABLE.length--;
 }
 
+void INIT_SYMBOLS_TABLE() {
+    for (int i = 0; i < MAX_NUMBER_OF_SYMBOLS; i++) {
+        TABLE.symbols[i] = EMPTY_SLOT;
+    }
+}
+
 void print_symbols_table() {
     for (int i = 0; i < MAX_NUMBER_OF_SYMBOLS; i++) {
         if (TABLE.symbols[i] == EMPTY_SLOT) {
@@ -72,8 +75,6 @@ void print_symbols_table() {
 // end Table
 
 // Lexer
-char* read_file(const char* file_path);
-
 typedef enum {
     TOKEN_PREP = 0    ,
     TOKEN_SIGOP       ,
@@ -229,16 +230,72 @@ int lex_nextt(Lexer *lex) {
 
 // end Lexer
 
+// Stack Machine
+
+#define MAX_STACK_SIZE 4096
+
+typedef struct {
+    BOOLEAN items[MAX_STACK_SIZE];
+    int head;
+} Stack;
+
+Stack stack = {0};
+
+BOOLEAN pop(Stack *s) {
+    assert(s->head > 0 && "pop(Stack *s) on empty stack");
+    return s->items[--s->head];
+}
+
+void push(Stack *s, BOOLEAN item) {
+    assert(s->head < MAX_STACK_SIZE && "push(Stack *s, BOOLEAN item) on fullstack");
+    s->items[s->head++] = item;
+}
+
+void print_stack_trace(Stack *s) {
+    for (int i = s->head-1; i >= 0; i--) {
+        printf("[ %d ] %d\n", i, s->items[i]);
+    }
+}
+
+// end Stack Machine
+
 int main(void) {
     INIT_SYMBOLS_TABLE();
     const char *file_path = "teste.lc";
     Lexer *lex = lex_make(file_path);
+
+    int parens = 0;
+    BOOLEAN v;
     while (lex_nextt(lex) != -1) {
+        assert(parens >= 0 && "Unbalanced parens");
+        switch (lex->token->type) {
+            case TOKEN_OPPAREN: parens++; break;
+            case TOKEN_CLPAREN: parens--; break;
+            case TOKEN_PREP: {
+                v = symbols_get(lex->token->value);
+                assert(v != EMPTY_SLOT && "token not present in the table of symbols");
+                push(&stack, v);
+            } break;
+            case TOKEN_SIGOP: {
+                v = symbols_get(lex->token->value);
+                assert(v == "~" && "NOT IMPLEMENTED: we have just not operation for now");
+                assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
+                assert(lex->token->type == TOKEN_PREP);
+                v = symbols_get(lex->token->value);
+                push(&stack, NOT(v));
+            } break;
+            case TOKEN_BINOP: {
+                v = symbols_get(lex->token->value);
+                if (v == "v") {
+                } else if (v == "^") {
+                } else if (v == "+") {
+                }
+            } break;
+        }
         printf(FMT_Token"\n", ARGS_Token(*lex->token));
     }
 
     lex_free(lex);
-    print_symbols_table();
     return 0;
 }
 
