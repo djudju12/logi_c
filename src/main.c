@@ -361,16 +361,15 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
             } break;
             default: assert(0 && "unreachable");
         }
-        // printf(FMT_Token"\n", ARGS_Token(*lex->token));
     }
 }
 
 void generate_truth_table(Lexer *lex) {
     evaluate(lex, 0);
-    printf("COL_R = %s", lex->text);
+    printf("EXPR = %s", lex->text);
     for(int k = 0; k < TABLE.length; k++) {
         printf("%s ", TABLE.keys[k]);
-    } printf("COL_R\n");
+    } printf("EXPR\n");
 
     for(int k = 0; k < TABLE.length; k++) {
         BOOLEAN v = symbols_get(TABLE.keys[k]);
