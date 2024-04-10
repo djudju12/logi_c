@@ -13,6 +13,8 @@ int powi(int b, int p);
 #define MAX_NUMBER_OF_SYMBOLS 256
 #define MAX_TOKEN_SIZE        256
 
+#define UNREACHABLE assert(0 && "UNREACHABLE")
+
 // Table
 #define BOOLEAN __int8_t
 
@@ -158,14 +160,7 @@ char lex_nextc(Lexer *lex) {
 }
 
 bool token_is_single_char(char c) {
-    static char chars_that_are_single_tokens[] = {
-        '^',
-        'v',
-        '~',
-        '(',
-        ')',
-        '+'
-    };
+    static char chars_that_are_single_tokens[] = { '^', 'v', '~', '(', ')', '+' };
 
     for (size_t i = 0; i < ARRAY_SIZE(chars_that_are_single_tokens); i++) {
         if (c == chars_that_are_single_tokens[i]) {
@@ -217,9 +212,7 @@ int lex_nextt(Lexer *lex) {
             case '~': lex->token->type = TOKEN_SIGOP;   return 0;
             case '(': lex->token->type = TOKEN_OPPAREN; return 0;
             case ')': lex->token->type = TOKEN_CLPAREN; return 0;
-            default: {
-                assert(false && "unreachable");
-            }
+            default: { UNREACHABLE; }
         }
     }
 
@@ -246,7 +239,7 @@ int lex_nextt(Lexer *lex) {
         return 0;
     }
 
-    assert(false && "unreachable");
+    UNREACHABLE;
 }
 
 // end Lexer
@@ -278,7 +271,7 @@ void print_stack_trace(Stack *s) {
     }
 }
 
-// end Stack Machine
+// end Stack
 
 BOOLEAN NOT(BOOLEAN value) {
     return !value;
@@ -343,7 +336,7 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
                     evaluate(lex, parens++);
                     v = pop(&stack);
                     push(&stack, NOT(v));
-                } else { assert(0 && "unreachable"); }
+                } else { UNREACHABLE; }
             } break;
             case TOKEN_BINOP: {
                 BINOP_FUNC operation = get_binop_operation(lex->token->value);
@@ -357,9 +350,9 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
                     evaluate(lex, parens++);
                     v2 = symbols_get(lex->token->value);
                     push(&stack, (*operation)(v, v2));
-                } else { assert(0 && "unreachable"); }
+                } else { UNREACHABLE; }
             } break;
-            default: assert(0 && "unreachable");
+            default: UNREACHABLE;
         }
     }
 }
@@ -394,17 +387,47 @@ void generate_truth_table(Lexer *lex) {
 
 }
 
-int main(void) {
+// TODO: add mode interative
+// TODO: make the print of the truth table better
+// TODO: implement logical implication (=>)
+// TODO: add proper syntax error
+// TODO: add proper error from command line mistaks
+
+char* shift(int* argc, char*** argv) {
+    --(*argc);
+    return *(*argv)++;
+}
+
+void usage(const char *program_name) {
+    const char *usage_string =
+    "Usage: %s [FILE]\n";
+
+    printf(usage_string, program_name);
+}
+
+int main(int argc, char **argv) {
+    Lexer *lex;
     INIT_SYMBOLS_TABLE();
-    const char *file_path = "teste.lc";
-    Lexer *lex = lex_make(file_path);
-    generate_truth_table(lex);
+
+    char *program_name = shift(&argc, &argv);
+    if (argc == 0) {
+        usage(program_name);
+        return 0;
+    }
+
+    char *arg = shift(&argc, &argv);
+    if (arg[0] != '-') {
+        lex = lex_make(arg);
+        generate_truth_table(lex);
+    }
+
     lex_free(lex);
     return 0;
 }
 
 char* read_file(const char* file_path) {
     FILE *f = fopen(file_path, "r");
+    char *content = NULL;
     if (f == NULL) {
         goto ERROR;
     }
@@ -418,7 +441,7 @@ char* read_file(const char* file_path) {
     }
     rewind(f);
 
-    char *content = malloc(sizeof(char)*size);
+    content = malloc(sizeof(char)*size);
     int b_read = fread(content, 1, size, f);
     if (b_read != size) {
         goto ERROR;
