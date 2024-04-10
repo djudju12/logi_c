@@ -9,6 +9,7 @@
 
 char* read_file(const char* file_path);
 int powi(int b, int p);
+int getline(char *dest, int size, FILE *stream);
 
 #define MAX_NUMBER_OF_SYMBOLS 256
 #define MAX_TOKEN_SIZE        256
@@ -118,8 +119,7 @@ typedef struct {
     int cursor;
 } Lexer;
 
-Lexer* lex_make(const char *code_path) {
-    char *code = read_file(code_path);
+Lexer* lex_make(char *code) {
     assert(code != NULL && "cannot read the code!");
     Lexer *lex = malloc(sizeof(Lexer));
 
@@ -321,11 +321,13 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
         switch (lex->token->type) {
             case TOKEN_OPPAREN: parens++; break;
             case TOKEN_CLPAREN: parens--; break;
+
             case TOKEN_PREP: {
                 v = symbols_get(lex->token->value);
                 assert(v != EMPTY_SLOT && "token not present in the table of symbols");
                 push(&stack, v);
             } break;
+
             case TOKEN_SIGOP: {
                 assert(strncmp(lex->token->value, "~", 1) == 0 && "NOT IMPLEMENTED: we have just 'not' operation for now");
                 assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
@@ -338,6 +340,7 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
                     push(&stack, NOT(v));
                 } else { UNREACHABLE; }
             } break;
+
             case TOKEN_BINOP: {
                 BINOP_FUNC operation = get_binop_operation(lex->token->value);
                 assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
@@ -355,11 +358,13 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
             default: UNREACHABLE;
         }
     }
+
+    assert(parens == initial_parenteses_open_count && "Unbalanced parens");
 }
 
 void generate_truth_table(Lexer *lex) {
     evaluate(lex, 0);
-    printf("EXPR = %s", lex->text);
+    printf("EXPR = %s\n", lex->text);
     for(int k = 0; k < TABLE.length; k++) {
         printf("%s ", TABLE.keys[k]);
     } printf("EXPR\n");
@@ -390,7 +395,7 @@ void generate_truth_table(Lexer *lex) {
 // TODO: add mode interative
 // TODO: make the print of the truth table better
 // TODO: implement logical implication (=>)
-// TODO: add proper syntax error
+// TODO: add proper syntax error (lookahead can be useful)
 // TODO: add proper error from command line mistaks
 
 char* shift(int* argc, char*** argv) {
@@ -405,8 +410,27 @@ void usage(const char *program_name) {
     printf(usage_string, program_name);
 }
 
+void interative_mode() {
+    Lexer *lex = NULL;
+    const int buffer_size = 4096;
+    char buffer[buffer_size];
+
+    while (getline(buffer, buffer_size, stdin) != EOF) {
+        if (lex == NULL) {
+            lex = lex_make(buffer);
+        } else {
+            lex_reset(lex);
+            lex->text = buffer;
+        }
+
+        evaluate(lex, 0);
+        generate_truth_table(lex);
+    }
+
+    lex_free(lex);
+}
+
 int main(int argc, char **argv) {
-    Lexer *lex;
     INIT_SYMBOLS_TABLE();
 
     char *program_name = shift(&argc, &argv);
@@ -416,12 +440,16 @@ int main(int argc, char **argv) {
     }
 
     char *arg = shift(&argc, &argv);
-    if (arg[0] != '-') {
-        lex = lex_make(arg);
+    if (strncmp(arg, "-i", 2) == 0) {
+        interative_mode();
+        return 0;
+    } else {
+        char *code = read_file(arg);
+        Lexer *lex = lex_make(code);
         generate_truth_table(lex);
+        lex_free(lex);
     }
 
-    lex_free(lex);
     return 0;
 }
 
@@ -459,4 +487,21 @@ int powi(int b, int p) {
     int r = 1;
     while (p-- > 0) r *= b;
     return r;
+}
+
+int getline(char *dest, int size, FILE *stream) {
+    char c;
+    int cnt = 0;
+    printf("> ");
+    c = fgetc(stream);
+    if (c == EOF) return EOF;
+    while(c != EOF && c != '\n') {
+        if ((size-1) <= cnt ) break;
+        *(dest++) = c;
+        cnt++;
+        c = fgetc(stream);
+    }
+
+    *(dest++) = '\0';
+    return 0;
 }
