@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -43,7 +44,7 @@ void symbols_insert(char *symbol, BOOLEAN value) {
     assert(value != EMPTY_SLOT && "Cannot use EMPTY_SLOT has a value");
 
     int i = hash(symbol) % MAX_NUMBER_OF_SYMBOLS;
-    assert(TABLE.symbols[i] == EMPTY_SLOT && "TODO: Collision not implemented");
+    // assert(TABLE.symbols[i] == EMPTY_SLOT && "TODO: Collision not implemented");
 
     TABLE.symbols[i] = value;
     TABLE.length++;
@@ -186,7 +187,7 @@ int lex_nextt(Lexer *lex) {
         lex->token->type = TOKEN_PREP;
         BOOLEAN s = symbols_get(lex->token->value);
         if (s == EMPTY_SLOT) {
-            symbols_insert(lex->token->value, 0);
+            symbols_insert(lex->token->value, 1);
         }
 
         return 0;
@@ -212,17 +213,26 @@ int lex_nextt(Lexer *lex) {
     }
 
     // TODO: add token for => and <=>
-    if (c == '-' || c == '<') {
-        char first_char = c;
-        c = lex_nextc(lex);
-        if (c == '>' || c == '-') {
-            lex->token->type = TOKEN_BINOP;
-            lex->token->value[0] = first_char;
-            lex->token->value[1] = c;
-            lex->token->value[2] = '\0';
-            lex_nextc(lex);
-            return 0;
-        }
+    if (c == '<') {
+        assert(lex_nextc(lex) == '-');
+        assert(lex_nextc(lex) == '>');
+        lex->token->type = TOKEN_BINOP;
+        lex->token->value[0] = '<';
+        lex->token->value[1] = '-';
+        lex->token->value[2] = '>';
+        lex->token->value[3] = '\0';
+        lex_nextc(lex);
+        return 0;
+    }
+
+    if (c == '-') {
+        assert(lex_nextc(lex) == '>');
+        lex->token->type = TOKEN_BINOP;
+        lex->token->value[0] = '-';
+        lex->token->value[1] = '>';
+        lex->token->value[2] = '\0';
+        lex_nextc(lex);
+        return 0;
     }
 
     assert(false && "unreachable");
@@ -259,14 +269,18 @@ void print_stack_trace(Stack *s) {
 
 // end Stack Machine
 
-int main(void) {
-    INIT_SYMBOLS_TABLE();
-    const char *file_path = "teste.lc";
-    Lexer *lex = lex_make(file_path);
+BOOLEAN NOT(BOOLEAN value) {
+    return !value;
+}
 
-    int parens = 0;
-    BOOLEAN v;
-    while (lex_nextt(lex) != -1) {
+BOOLEAN OR(BOOLEAN value, BOOLEAN value2) {
+    return value || value2;
+}
+
+void evaluate(Lexer *lex, int initial_parenteses_open_count) {
+    BOOLEAN v, v2;
+    int parens = initial_parenteses_open_count;
+    while ((initial_parenteses_open_count == 0 || parens != (initial_parenteses_open_count-1)) && lex_nextt(lex) != -1) {
         assert(parens >= 0 && "Unbalanced parens");
         switch (lex->token->type) {
             case TOKEN_OPPAREN: parens++; break;
@@ -277,25 +291,44 @@ int main(void) {
                 push(&stack, v);
             } break;
             case TOKEN_SIGOP: {
-                v = symbols_get(lex->token->value);
-                assert(v == "~" && "NOT IMPLEMENTED: we have just not operation for now");
+                assert(strncmp(lex->token->value, "~", 1) == 0 && "NOT IMPLEMENTED: we have just 'not' operation for now");
                 assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
-                assert(lex->token->type == TOKEN_PREP);
-                v = symbols_get(lex->token->value);
-                push(&stack, NOT(v));
+                if (lex->token->type == TOKEN_PREP) {
+                    v = symbols_get(lex->token->value);
+                    push(&stack, NOT(v));
+                } else if (lex->token->type == TOKEN_OPPAREN) {
+                    evaluate(lex, parens++);
+                    v = pop(&stack);
+                    push(&stack, NOT(v));
+                } else { assert(0 && "unreachable"); }
             } break;
             case TOKEN_BINOP: {
-                v = symbols_get(lex->token->value);
-                if (v == "v") {
-                } else if (v == "^") {
-                } else if (v == "+") {
-                }
+                v = pop(&stack);
+                if (strncmp(lex->token->value, "v", 1) == 0) {
+                    assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
+                    if (lex->token->type == TOKEN_PREP){
+                        v2 = symbols_get(lex->token->value);
+                        push(&stack, OR(v, v2));
+                    } else if (lex->token->type == TOKEN_OPPAREN) {
+                        evaluate(lex, parens++);
+                        v2 = pop(&stack);
+                        push(&stack, OR(v, v2));
+                    } else { assert(0 && "unreachable"); }
+                } else { assert(0 && "TODO: not implemented"); }
             } break;
+            default: assert(0 && "unreachable");
         }
-        printf(FMT_Token"\n", ARGS_Token(*lex->token));
+        // printf(FMT_Token"\n", ARGS_Token(*lex->token));
     }
+}
 
+int main(void) {
+    INIT_SYMBOLS_TABLE();
+    const char *file_path = "teste.lc";
+    Lexer *lex = lex_make(file_path);
+    evaluate(lex, 0);
     lex_free(lex);
+    print_stack_trace(&stack);
     return 0;
 }
 
