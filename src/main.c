@@ -4,11 +4,11 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <string.h>
-#include <math.h>
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 char* read_file(const char* file_path);
+int powi(int b, int p);
 
 #define MAX_NUMBER_OF_SYMBOLS 256
 #define MAX_TOKEN_SIZE        256
@@ -378,7 +378,7 @@ void generate_truth_table(Lexer *lex) {
 
     printf("%d\n", pop(&stack));
 
-    for (int j = (int)pow(2, TABLE.length)-2; j >= 0; j--) {
+    for (int j = powi(2, TABLE.length)-2; j >= 0; j--) {
         for(int k = 0; k < TABLE.length; k++) {
             BOOLEAN v = symbols_get(TABLE.keys[k])&j>>(TABLE.length-k-1);
             symbols_insert(TABLE.keys[k], v);
@@ -430,4 +430,10 @@ ERROR:
     if (f) fclose(f);
     if (content) free(content);
     return NULL;
+}
+
+int powi(int b, int p) {
+    int r = 1;
+    while (p-- > 0) r *= b;
+    return r;
 }
