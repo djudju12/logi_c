@@ -66,8 +66,9 @@ void symbols_delete(char *symbol) {
 }
 
 void symbols_reset() {
-    for (int k = 0; k < TABLE.length; k++) {
-        symbols_insert(TABLE.keys[k], 1);
+    int total_symbols = TABLE.length;
+    for (int k = 0; k < total_symbols; k++) {
+        symbols_delete(TABLE.keys[k]);
     }
 }
 
@@ -316,7 +317,7 @@ BINOP_FUNC get_binop_operation(char *operation_symbol) {
 void evaluate(Lexer *lex, int initial_parenteses_open_count) {
     BOOLEAN v, v2;
     int parens = initial_parenteses_open_count;
-    while ((initial_parenteses_open_count == 0 || parens != (initial_parenteses_open_count-1)) && lex_nextt(lex) != -1) {
+    while ((initial_parenteses_open_count == 0 || parens > (initial_parenteses_open_count-1)) && lex_nextt(lex) != -1) {
         assert(parens >= 0 && "Unbalanced parens");
         switch (lex->token->type) {
             case TOKEN_OPPAREN: parens++; break;
@@ -334,11 +335,16 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
                 if (lex->token->type == TOKEN_PREP) {
                     v = symbols_get(lex->token->value);
                     push(&stack, NOT(v));
+
                 } else if (lex->token->type == TOKEN_OPPAREN) {
-                    evaluate(lex, parens++);
+                    evaluate(lex, parens + 1);
                     v = pop(&stack);
                     push(&stack, NOT(v));
-                } else { UNREACHABLE; }
+
+                } else {
+                    printf(FMT_Token"\n", ARGS_Token(*lex->token));
+                    UNREACHABLE;
+                }
             } break;
 
             case TOKEN_BINOP: {
@@ -349,17 +355,35 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
                 if (lex->token->type == TOKEN_PREP) {
                     v2 = symbols_get(lex->token->value);
                     push(&stack, (*operation)(v, v2));
-                } else if (lex->token->type == TOKEN_OPPAREN) {
-                    evaluate(lex, parens++);
-                    v2 = symbols_get(lex->token->value);
+
+                } else if (lex->token->type == TOKEN_SIGOP) {
+                    assert(strncmp(lex->token->value, "~", 1) == 0 && "NOT IMPLEMENTED: we have just 'not' operation for now");
+                    assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
+
+                    if (lex->token->type == TOKEN_PREP) {
+                        push(&stack, NOT(symbols_get(lex->token->value)));
+                    } else if (lex->token->type == TOKEN_OPPAREN) {
+                        evaluate(lex, parens + 1);
+                        push(&stack, NOT(pop(&stack)));
+                    } else { UNREACHABLE; }
+
+                    v2 = pop(&stack);
                     push(&stack, (*operation)(v, v2));
-                } else { UNREACHABLE; }
+
+                } else if (lex->token->type == TOKEN_OPPAREN) {
+                    evaluate(lex, parens + 1);
+                    v2 = pop(&stack);
+                    push(&stack, (*operation)(v, v2));
+
+                } else {
+                    printf(FMT_Token"\n", ARGS_Token(*lex->token));
+                    UNREACHABLE;
+                }
             } break;
             default: UNREACHABLE;
         }
     }
 
-    assert(parens == initial_parenteses_open_count && "Unbalanced parens");
 }
 
 void generate_truth_table(Lexer *lex) {
@@ -387,7 +411,9 @@ void generate_truth_table(Lexer *lex) {
         lex_reset(lex);
         evaluate(lex, 0);
         printf("%d\n", pop(&stack));
-        symbols_reset();
+        for (int k = 0; k < TABLE.length; k++) {
+            symbols_insert(TABLE.keys[k], 1);
+        }
     }
 
 }
@@ -425,6 +451,7 @@ void interative_mode() {
 
         evaluate(lex, 0);
         generate_truth_table(lex);
+        symbols_reset();
     }
 
     lex_free(lex);
