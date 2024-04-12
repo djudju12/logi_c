@@ -10,7 +10,7 @@ build:
 	$(CC) $(CFLAGS) $(SRC_FOLDER)/main.c -o $(BUILD_FOLDER)/${PROGRAM_NAME} $(LIBS)
 
 run: build
-	$(BUILD_FOLDER)/${PROGRAM_NAME}
+	$(BUILD_FOLDER)/${PROGRAM_NAME} teste.lc
 
-debug: main
-	/home/jonathan/Software/gf/gf2 build/logic &
+debug: build
+	/home/jonathan/Software/gf/gf2 build/logic teste.lc &
