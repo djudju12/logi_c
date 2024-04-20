@@ -6,11 +6,14 @@ PROGRAM_NAME=logic
 BUILD_FOLDER=build
 SRC_FOLDER=src
 
-build:
+build: src/
 	$(CC) $(CFLAGS) $(SRC_FOLDER)/main.c -o $(BUILD_FOLDER)/${PROGRAM_NAME} $(LIBS)
 
+src/:
+	mkdir -p $(BUILD_FOLDER)
+
 run: build
-	$(BUILD_FOLDER)/${PROGRAM_NAME} teste.lc
+	$(BUILD_FOLDER)/${PROGRAM_NAME}
 
 debug: build
 	/home/jonathan/Software/gf/gf2 build/logic teste.lc &
