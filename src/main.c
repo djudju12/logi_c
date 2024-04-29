@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#define _POSIX_C_SOURCE 200809L
+
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 char* read_file(const char* file_path);
@@ -392,8 +394,6 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
 | 0 | 1 |   0   |
 | 0 | 0 |   0   |
 */
-#define gent(fmt, pad, ...) printf("%*s"fmt"%*s", (pad), "", __VA_ARGS__, (pad), "")
-#define calc_pad(key) ((strnlen((key), MAX_TOKEN_SIZE)+1) / 2)
 #define PREFIX        "EXPR"
 #define PREFIX_RESULT "CLRES"
 void generate_truth_table(Lexer *lex) {
@@ -406,24 +406,29 @@ void generate_truth_table(Lexer *lex) {
     printf("| %s |", PREFIX_RESULT);
     printf("\n");
 
+    int len;
     for(int k = 0; k < TABLE.length; k++) {
         BOOLEAN v = symbols_get(TABLE.keys[k]);
-        printf("| %*s%c%d ", strnlen(TABLE.keys[k], MAX_TOKEN_SIZE), "", '\b', v);
+        len = strlen(TABLE.keys[k]);
+        printf("| %*s%c%d ", len, "", '\b', v);
     }
 
-    printf("| %*s%s%d |\n", strnlen(PREFIX_RESULT, MAX_TOKEN_SIZE), "", "\b", pop(&stack));
+    len = strlen(PREFIX_RESULT);
+    printf("| %*s%s%d |\n", len, "", "\b", pop(&stack));
 
     for (int j = powi(2, TABLE.length)-2; j >= 0; j--) {
         for(int k = 0; k < TABLE.length; k++) {
             BOOLEAN v = symbols_get(TABLE.keys[k])&j>>(TABLE.length-k-1);
             symbols_insert(TABLE.keys[k], v);
-            printf("| %*s%c%d ", strnlen(TABLE.keys[k], MAX_TOKEN_SIZE), "", '\b', v);
+            len = strlen(TABLE.keys[k]);
+            printf("| %*s%c%d ", len, "", '\b', v);
         }
 
         lex_reset(lex);
         evaluate(lex, 0);
 
-        printf("| %*s%s%d |\n", strnlen(PREFIX_RESULT, MAX_TOKEN_SIZE), "", "\b", pop(&stack));
+        len = strlen(PREFIX_RESULT);
+        printf("| %*s%s%d |\n", len, "", "\b", pop(&stack));
         for (int k = 0; k < TABLE.length; k++) {
             symbols_insert(TABLE.keys[k], 1);
         }
