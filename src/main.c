@@ -111,8 +111,8 @@ typedef struct {
 
 _Static_assert(ARRAY_SIZE(TOKEN_TYPE_DESC) == _TOTAL_TOKEN_TYPES, "assert that you have implemented the description of all the tokens");
 
-#define FMT_Token "Token(%s, %s)"
-#define ARGS_Token(t) (t).value, TOKEN_TYPE_DESC[(t).type]
+#define FMT_TOKEN "Token( %s, %s )"
+#define ARGS_TOKEN(t) (t).value, TOKEN_TYPE_DESC[(t).type]
 
 typedef struct {
     char *text;
@@ -219,14 +219,21 @@ int lex_nextt(Lexer *lex) {
 
     // TODO: add token for => and <=>
     if (c == '<') {
-        assert(lex_nextc(lex) == '-');
-        assert(lex_nextc(lex) == '>');
-        lex->token->type = TOKEN_BINOP;
-        lex->token->value[0] = '<';
-        lex->token->value[1] = '-';
-        lex->token->value[2] = '>';
-        lex->token->value[3] = '\0';
+        if ((c = lex_nextc(lex)) == '=') {
+            assert(lex_nextc(lex) == '>');
+            lex->token->value[0] = '<';
+            lex->token->value[1] = '=';
+            lex->token->value[2] = '>';
+        } else if (c == '-') {
+            assert(lex_nextc(lex) == '>');
+            lex->token->value[0] = '<';
+            lex->token->value[1] = '-';
+            lex->token->value[2] = '>';
+        }
+
         lex_nextc(lex);
+        lex->token->value[3] = '\0';
+        lex->token->type = TOKEN_BINOP;
         return 0;
     }
 
@@ -253,8 +260,6 @@ typedef struct {
     BOOLEAN items[MAX_STACK_SIZE];
     int head;
 } Stack;
-
-Stack stack = {0};
 
 BOOLEAN pop(Stack *s) {
     assert(s->head > 0 && "pop(Stack *s) on empty stack");
@@ -314,7 +319,7 @@ BINOP_FUNC get_binop_operation(char *operation_symbol) {
     } else { assert(0 && "TODO: not implemented"); }
 }
 
-void evaluate(Lexer *lex, int initial_parenteses_open_count) {
+void evaluate(Lexer *lex, Stack *stack, int initial_parenteses_open_count) {
     BOOLEAN v, v2;
     int parens = initial_parenteses_open_count;
     while ((initial_parenteses_open_count == 0 || parens > (initial_parenteses_open_count-1)) && lex_nextt(lex) != -1) {
@@ -326,7 +331,7 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
             case TOKEN_PREP: {
                 v = symbols_get(lex->token->value);
                 assert(v != EMPTY_SLOT && "token not present in the table of symbols");
-                push(&stack, v);
+                push(stack, v);
             } break;
 
             case TOKEN_SIGOP: {
@@ -334,15 +339,15 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
                 assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
                 if (lex->token->type == TOKEN_PREP) {
                     v = symbols_get(lex->token->value);
-                    push(&stack, NOT(v));
+                    push(stack, NOT(v));
 
                 } else if (lex->token->type == TOKEN_OPPAREN) {
-                    evaluate(lex, parens + 1);
-                    v = pop(&stack);
-                    push(&stack, NOT(v));
+                    evaluate(lex, stack, parens + 1);
+                    v = pop(stack);
+                    push(stack, NOT(v));
 
                 } else {
-                    printf(FMT_Token"\n", ARGS_Token(*lex->token));
+                    printf(FMT_TOKEN"\n", ARGS_TOKEN(*lex->token));
                     UNREACHABLE;
                 }
             } break;
@@ -351,32 +356,32 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
                 BINOP_FUNC operation = get_binop_operation(lex->token->value);
                 assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
 
-                v = pop(&stack);
+                v = pop(stack);
                 if (lex->token->type == TOKEN_PREP) {
                     v2 = symbols_get(lex->token->value);
-                    push(&stack, (*operation)(v, v2));
+                    push(stack, (*operation)(v, v2));
 
                 } else if (lex->token->type == TOKEN_SIGOP) {
                     assert(strncmp(lex->token->value, "~", 1) == 0 && "NOT IMPLEMENTED: we have just 'not' operation for now");
                     assert(lex_nextt(lex) != -1 && "Expected TOKEN_PREP get EOF");
 
                     if (lex->token->type == TOKEN_PREP) {
-                        push(&stack, NOT(symbols_get(lex->token->value)));
+                        push(stack, NOT(symbols_get(lex->token->value)));
                     } else if (lex->token->type == TOKEN_OPPAREN) {
-                        evaluate(lex, parens + 1);
-                        push(&stack, NOT(pop(&stack)));
+                        evaluate(lex, stack, parens + 1);
+                        push(stack, NOT(pop(stack)));
                     } else { UNREACHABLE; }
 
-                    v2 = pop(&stack);
-                    push(&stack, (*operation)(v, v2));
+                    v2 = pop(stack);
+                    push(stack, (*operation)(v, v2));
 
                 } else if (lex->token->type == TOKEN_OPPAREN) {
-                    evaluate(lex, parens + 1);
-                    v2 = pop(&stack);
-                    push(&stack, (*operation)(v, v2));
+                    evaluate(lex, stack, parens + 1);
+                    v2 = pop(stack);
+                    push(stack, (*operation)(v, v2));
 
                 } else {
-                    printf(FMT_Token"\n", ARGS_Token(*lex->token));
+                    printf(FMT_TOKEN"\n", ARGS_TOKEN(*lex->token));
                     UNREACHABLE;
                 }
             } break;
@@ -395,7 +400,8 @@ void evaluate(Lexer *lex, int initial_parenteses_open_count) {
 #define PREFIX        "EXPR"
 #define PREFIX_RESULT "CLRES"
 void generate_truth_table(Lexer *lex) {
-    evaluate(lex, 0);
+    Stack stack = {0};
+    evaluate(lex, &stack, 0);
     printf("%s => %s\n", PREFIX, lex->text);
     for(int k = 0; k < TABLE.length; k++) {
         printf("| %s ", TABLE.keys[k]);
@@ -423,7 +429,7 @@ void generate_truth_table(Lexer *lex) {
         }
 
         lex_reset(lex);
-        evaluate(lex, 0);
+        evaluate(lex, &stack, 0);
 
         len = strlen(PREFIX_RESULT);
         printf("| %*s%s%d |\n", len, "", "\b", pop(&stack));
@@ -434,7 +440,6 @@ void generate_truth_table(Lexer *lex) {
 
 }
 
-// TODO: make the print of the truth table better
 // TODO: add proper syntax error (lookahead can be useful)
 // TODO: add proper error from command line mistakes
 
@@ -463,35 +468,11 @@ void interative_mode() {
             lex->text = buffer;
         }
 
-        evaluate(lex, 0);
         generate_truth_table(lex);
         symbols_reset();
     }
 
     lex_free(lex);
-}
-
-int main(int argc, char **argv) {
-    INIT_SYMBOLS_TABLE();
-
-    char *program_name = shift(&argc, &argv);
-    if (argc == 0) {
-        usage(program_name);
-        return 0;
-    }
-
-    char *arg = shift(&argc, &argv);
-    if (strncmp(arg, "-i", 2) == 0) {
-        interative_mode();
-        return 0;
-    } else {
-        char *code = read_file(arg);
-        Lexer *lex = lex_make(code);
-        generate_truth_table(lex);
-        lex_free(lex);
-    }
-
-    return 0;
 }
 
 char* read_file(const char* file_path) {
@@ -544,5 +525,28 @@ int getline(char *dest, int size, FILE *stream) {
     }
 
     *(dest++) = '\0';
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    INIT_SYMBOLS_TABLE();
+
+    char *program_name = shift(&argc, &argv);
+    if (argc == 0) {
+        usage(program_name);
+        return 0;
+    }
+
+    char *arg = shift(&argc, &argv);
+    if (strncmp(arg, "-i", 2) == 0) {
+        interative_mode();
+        return 0;
+    } else {
+        char *code = read_file(arg);
+        Lexer *lex = lex_make(code);
+        generate_truth_table(lex);
+        lex_free(lex);
+    }
+
     return 0;
 }
