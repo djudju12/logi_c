@@ -5,8 +5,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define _POSIX_C_SOURCE 200809L
-
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 char* read_file(const char* file_path);

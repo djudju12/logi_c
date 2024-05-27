@@ -13,7 +13,7 @@ src/:
 	mkdir -p $(BUILD_FOLDER)
 
 run: build
-	$(BUILD_FOLDER)/${PROGRAM_NAME} -i
+	$(BUILD_FOLDER)/$(PROGRAM_NAME) -i
 
 debug: build
 	/home/jonathan/Software/gf/gf2 build/logic teste.lc &
