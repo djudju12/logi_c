@@ -93,15 +93,17 @@ typedef enum {
     TOKEN_BINOP       ,
     TOKEN_OPPAREN     ,
     TOKEN_CLPAREN     ,
+    TOKEN_FINAL_OP    ,
     _TOTAL_TOKEN_TYPES,
 } TOKEN_TYPE;
 
 char* TOKEN_TYPE_DESC[] = {
-    [TOKEN_PREP]    = "TOKEN_PREP"   ,
-    [TOKEN_SIGOP]   = "TOKEN_SIGOP"  ,
-    [TOKEN_BINOP]   = "TOKEN_BINOP"  ,
-    [TOKEN_OPPAREN] = "TOKEN_OPPAREN",
-    [TOKEN_CLPAREN] = "TOKEN_CLPAREN",
+    [TOKEN_PREP]     = "TOKEN_PREP"       ,
+    [TOKEN_SIGOP]    = "TOKEN_SIGOP"      ,
+    [TOKEN_BINOP]    = "TOKEN_BINOP"      ,
+    [TOKEN_OPPAREN]  = "TOKEN_OPPAREN"    ,
+    [TOKEN_CLPAREN]  = "TOKEN_CLPAREN"    ,
+    [TOKEN_FINAL_OP] = "TOKEN_FINAL_OP",
 };
 
 typedef struct {
@@ -224,16 +226,17 @@ int lex_nextt(Lexer *lex) {
             lex->token->value[0] = '<';
             lex->token->value[1] = '=';
             lex->token->value[2] = '>';
+            lex->token->type = TOKEN_FINAL_OP;
         } else if (c == '-') {
             assert(lex_nextc(lex) == '>');
             lex->token->value[0] = '<';
             lex->token->value[1] = '-';
             lex->token->value[2] = '>';
+            lex->token->type = TOKEN_BINOP;
         }
 
         lex_nextc(lex);
         lex->token->value[3] = '\0';
-        lex->token->type = TOKEN_BINOP;
         return 0;
     }
 
@@ -316,10 +319,12 @@ BINOP_FUNC get_binop_operation(char *operation_symbol) {
         return &COND;
     } else if (strncmp(operation_symbol, "<->", 3) == 0) {
         return &BCOND;
-    } else { assert(0 && "TODO: not implemented"); }
+    } else {
+        assert(0 && "TODO: not implemented");
+    }
 }
 
-void evaluate(Lexer *lex, Stack *stack, int initial_parenteses_open_count) {
+int evaluate(Lexer *lex, Stack *stack, int initial_parenteses_open_count) {
     BOOLEAN v, v2;
     int parens = initial_parenteses_open_count;
     while ((initial_parenteses_open_count == 0 || parens > (initial_parenteses_open_count-1)) && lex_nextt(lex) != -1) {
@@ -342,7 +347,10 @@ void evaluate(Lexer *lex, Stack *stack, int initial_parenteses_open_count) {
                     push(stack, NOT(v));
 
                 } else if (lex->token->type == TOKEN_OPPAREN) {
-                    evaluate(lex, stack, parens + 1);
+                    if (evaluate(lex, stack, parens + 1) == TOKEN_FINAL_OP) {
+                        assert(0 && "using a final operation to compose expressions");
+                    }
+
                     v = pop(stack);
                     push(stack, NOT(v));
 
@@ -368,9 +376,14 @@ void evaluate(Lexer *lex, Stack *stack, int initial_parenteses_open_count) {
                     if (lex->token->type == TOKEN_PREP) {
                         push(stack, NOT(symbols_get(lex->token->value)));
                     } else if (lex->token->type == TOKEN_OPPAREN) {
-                        evaluate(lex, stack, parens + 1);
+                        if (evaluate(lex, stack, parens + 1) == TOKEN_FINAL_OP) {
+                            assert(0 && "using a final operation to compose expressions");
+                        }
+
                         push(stack, NOT(pop(stack)));
-                    } else { UNREACHABLE; }
+                    } else {
+                        UNREACHABLE;
+                    }
 
                     v2 = pop(stack);
                     push(stack, (*operation)(v, v2));
@@ -384,13 +397,43 @@ void evaluate(Lexer *lex, Stack *stack, int initial_parenteses_open_count) {
                     printf(FMT_TOKEN"\n", ARGS_TOKEN(*lex->token));
                     UNREACHABLE;
                 }
+
             } break;
-            default: UNREACHABLE;
+
+            case TOKEN_FINAL_OP: {
+                Stack stack2 = {0};
+                evaluate(lex, &stack2, 0);
+                BOOLEAN ha = 1;
+                if (stack->head != stack2.head) {
+                    ha = 0;
+                } else {
+                    while(stack->head > 0) {
+                        BOOLEAN v1 = pop(stack);
+                        BOOLEAN v2 = pop(&stack2);
+                        if (v1 != v2) {
+                            ha = 0;
+                            break;
+                        }
+                    }
+                }
+
+                push(stack, ha);
+                return TOKEN_FINAL_OP;
+            } break;
+
+            default: {
+                UNREACHABLE;
+            }
         }
     }
+
+    return 0;
 }
 
 /*
+| (p -> q) <=> p |
+|       1        |
+
 | A | B | COLRE |
 | 1 | 1 |   1   |
 | 1 | 0 |   0   |
@@ -401,43 +444,47 @@ void evaluate(Lexer *lex, Stack *stack, int initial_parenteses_open_count) {
 #define PREFIX_RESULT "CLRES"
 void generate_truth_table(Lexer *lex) {
     Stack stack = {0};
-    evaluate(lex, &stack, 0);
-    printf("%s => %s\n", PREFIX, lex->text);
-    for(int k = 0; k < TABLE.length; k++) {
-        printf("| %s ", TABLE.keys[k]);
-    }
-
-    printf("| %s |", PREFIX_RESULT);
-    printf("\n");
-
-    int len;
-    for(int k = 0; k < TABLE.length; k++) {
-        BOOLEAN v = symbols_get(TABLE.keys[k]);
-        len = strlen(TABLE.keys[k]);
-        printf("| %*s%c%d ", len, "", '\b', v);
-    }
-
-    len = strlen(PREFIX_RESULT);
-    printf("| %*s%s%d |\n", len, "", "\b", pop(&stack));
-
-    for (int j = powi(2, TABLE.length)-2; j >= 0; j--) {
+    if (evaluate(lex, &stack, 0) == TOKEN_FINAL_OP) {
+        int pad = strlen(lex->text);
+        printf("| %s |\n", lex->text);
+        printf("| %*s%d%*s|\n", pad/2, "", pop(&stack), pad/2 + pad%2, "");
+    } else {
+        printf("%s => %s\n", PREFIX, lex->text);
         for(int k = 0; k < TABLE.length; k++) {
-            BOOLEAN v = symbols_get(TABLE.keys[k])&j>>(TABLE.length-k-1);
-            symbols_insert(TABLE.keys[k], v);
+            printf("| %s ", TABLE.keys[k]);
+        }
+
+        printf("| %s |", PREFIX_RESULT);
+        printf("\n");
+
+        int len;
+        for(int k = 0; k < TABLE.length; k++) {
+            BOOLEAN v = symbols_get(TABLE.keys[k]);
             len = strlen(TABLE.keys[k]);
             printf("| %*s%c%d ", len, "", '\b', v);
         }
 
-        lex_reset(lex);
-        evaluate(lex, &stack, 0);
-
         len = strlen(PREFIX_RESULT);
-        printf("| %*s%s%d |\n", len, "", "\b", pop(&stack));
-        for (int k = 0; k < TABLE.length; k++) {
-            symbols_insert(TABLE.keys[k], 1);
+        printf("| %*s%c%d |\n", len, "", '\b', pop(&stack));
+
+        for (int j = powi(2, TABLE.length)-2; j >= 0; j--) {
+            for(int k = 0; k < TABLE.length; k++) {
+                BOOLEAN v = symbols_get(TABLE.keys[k])&j>>(TABLE.length-k-1);
+                symbols_insert(TABLE.keys[k], v);
+                len = strlen(TABLE.keys[k]);
+                printf("| %*s%c%d ", len, "", '\b', v);
+            }
+
+            lex_reset(lex);
+            evaluate(lex, &stack, 0);
+
+            len = strlen(PREFIX_RESULT);
+            printf("| %*s%c%d |\n", len, "", '\b', pop(&stack));
+            for (int k = 0; k < TABLE.length; k++) {
+                symbols_insert(TABLE.keys[k], 1);
+            }
         }
     }
-
 }
 
 // TODO: add proper syntax error (lookahead can be useful)

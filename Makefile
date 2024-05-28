@@ -17,3 +17,6 @@ run: build
 
 debug: build
 	/home/jonathan/Software/gf/gf2 build/logic teste.lc &
+
+run/file: build
+	$(BUILD_FOLDER)/$(PROGRAM_NAME) teste.lc
