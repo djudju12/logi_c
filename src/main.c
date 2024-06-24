@@ -503,7 +503,8 @@ char* shift(int* argc, char*** argv) {
 void usage(const char *program_name) {
     const char *usage_string =
     "Usage: %s [OPTIONS] EXP [FILE]\n"
-    "  -f\tUse expression from file\n";
+    "  -f\tUse expression from file\n"
+    "  -i\tUse interactive mode\n";
     printf(usage_string, program_name);
 }
 
