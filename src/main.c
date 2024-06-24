@@ -455,6 +455,14 @@ void generate_truth_table(Lexer *lex) {
         }
 
         printf("| %s |", PREFIX_RESULT);
+
+        printf("\n");
+        for(int k = 0; k < TABLE.length; k++) {
+            printf("| - ");
+        }
+
+        printf("|   -   |");
+
         printf("\n");
 
         int len;

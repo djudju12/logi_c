@@ -20,3 +20,6 @@ debug: build
 
 run/file: build
 	$(BUILD_FOLDER)/$(PROGRAM_NAME) teste.lc
+
+install: build
+	cp $(BUILD_FOLDER)/$(PROGRAM_NAME) $${HOME}/.local/bin
