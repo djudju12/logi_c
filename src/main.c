@@ -487,9 +487,6 @@ void generate_truth_table(Lexer *lex) {
     }
 }
 
-// TODO: add proper syntax error (lookahead can be useful)
-// TODO: add proper error from command line mistakes
-
 char* shift(int* argc, char*** argv) {
     --(*argc);
     return *(*argv)++;
@@ -497,8 +494,8 @@ char* shift(int* argc, char*** argv) {
 
 void usage(const char *program_name) {
     const char *usage_string =
-    "Usage: %s [FILE]\n";
-
+    "Usage: %s [OPTIONS] EXP [FILE]\n"
+    "  -f\tUse expression from file\n";
     printf(usage_string, program_name);
 }
 
@@ -575,6 +572,9 @@ int getline(char *dest, int size, FILE *stream) {
     return 0;
 }
 
+// TODO: add proper syntax error (lookahead can be useful)
+// TODO: add proper error from command line mistakes
+// TODO: add piping mechanism
 int main(int argc, char **argv) {
     INIT_SYMBOLS_TABLE();
 
@@ -588,11 +588,14 @@ int main(int argc, char **argv) {
     if (strncmp(arg, "-i", 2) == 0) {
         interative_mode();
         return 0;
-    } else {
-        char *code = read_file(arg);
+    } else if (strncmp(arg, "-f", 2) == 0) {
+        char *file_path = shift(&argc, &argv);
+        char *code = read_file(file_path);
         Lexer *lex = lex_make(code);
         generate_truth_table(lex);
-        lex_free(lex);
+    } else {
+        Lexer *lex = lex_make(arg);
+        generate_truth_table(lex);
     }
 
     return 0;
