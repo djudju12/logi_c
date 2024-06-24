@@ -101,4 +101,5 @@ b = V
 
 * Compiladores: Princípios, Técnicas e Ferramentas
 * The C Programming Language
-* www.youtube.com/tsoding
+* youtube.com/tsoding
+* github.com/djudju12/logi_c
